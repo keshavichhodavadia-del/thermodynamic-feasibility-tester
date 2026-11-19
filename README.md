@@ -1,6 +1,5 @@
 # CL 202 Thermodynamic Feasibility Tester
 
-Maintained by Keshavi.
 
 The GitHub Pages version runs the original Python engine in the visitor's browser using Pyodide. Its first calculation downloads the Python runtime from jsDelivr. The project requires no API key for calculations.
 
