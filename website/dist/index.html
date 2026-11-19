@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Test a useful-work claim against the laws of thermodynamics with the CL 202 Python engine.">
+  <title>ThermoLab | Feasibility Workbench</title>
+  <link rel="stylesheet" href="style.css?v=evidence-20261118">
+  <script defer src="app.js?v=evidence-20261118"></script>
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="#" aria-label="ThermoLab home"><span class="mark">◈</span>Thermo<span>Lab</span></a>
+    <nav aria-label="Main navigation"><a href="#workbench">Workbench</a><a href="#examples">Examples</a><a href="#models">Models</a><a href="#method">Method</a></nav>
+    <span class="course">CL 202</span>
+  </header>
+  <main>
+    <section class="hero" aria-labelledby="title">
+      <div class="hero-copy"><p class="eyebrow"><span></span> CHEMICAL ENGINEERING THERMODYNAMICS</p>
+        <h1 id="title">Could it <em>work?</em></h1>
+        <p>Describe an energy conversion idea. Find its thermodynamic ceiling, check the balances, and see how the claim compares.</p>
+        <a class="hero-link" href="#workbench">Open the workbench <span aria-hidden="true">↘</span></a>
+      </div>
+      <figure class="hero-figure" aria-label="Concept diagram showing an ideal upper power limit above a claimed output">
+        <svg viewBox="0 0 420 200" role="img" aria-label="Illustrative power limit chart">
+          <defs><pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse"><path d="M28 0H0V28" fill="none" stroke="#94acc1" stroke-opacity=".20"/></pattern>
+          <linearGradient id="area" x2="0" y2="1" gradientUnits="objectBoundingBox"><stop stop-color="#ffad76" stop-opacity=".32"/><stop offset="1" stop-color="#ffad76" stop-opacity="0"/></linearGradient></defs>
+          <rect x="25" y="16" width="360" height="147" fill="url(#grid)"/><path d="M25 16v147h360" fill="none" stroke="#7491a9"/>
+          <path d="M25 146C86 138 102 103 157 95S230 72 278 52 340 40 385 27V163H25Z" fill="url(#area)"/>
+          <path d="M25 146C86 138 102 103 157 95S230 72 278 52 340 40 385 27" fill="none" stroke="#ffad76" stroke-width="3"/>
+          <path d="M25 139h360" fill="none" stroke="#bbcee0" stroke-dasharray="5 6"/>
+          <circle cx="278" cy="52" r="5" fill="#ffad76"/><text x="233" y="27" fill="#ffc6a1">IDEAL LIMIT</text><text x="269" y="129" fill="#c8d9e9">CLAIMED OUTPUT</text>
+          <text x="25" y="187" fill="#b4c9db">ILLUSTRATIVE RESOURCE CURVE</text>
+        </svg>
+      </figure>
+    </section>
+
+    <section id="workbench" class="section" aria-labelledby="work-title">
+      <div class="section-intro"><p class="eyebrow">01 / ANALYZE</p><h2 id="work-title">Feasibility workbench</h2><p>Start with a description or enter the quantities for a known model.</p></div>
+      <div class="work-grid">
+        <div class="panel input-panel">
+          <div class="modes" aria-label="Input method"><button type="button" id="text-tab" aria-pressed="true">Describe a scenario</button><button type="button" id="model-tab" aria-pressed="false">Enter model inputs</button></div>
+          <form id="text-form">
+            <label for="scenario">What are you testing?</label>
+            <textarea id="scenario" rows="6" maxlength="3000" required placeholder="e.g. An inventor claims his engine takes 100 kW of heat from a source at 600 K, rejects heat to surroundings at 300 K and produces 60 kW of work."></textarea>
+            <div class="form-note" id="provider-note">Write the problem the way it appears in a textbook. The tester extracts the numbers, identifies the source and sink, chooses the model, and gives a verdict. Missing values are calculated when the supplied information determines them. Otherwise, the tester tells you what is still needed; it never assumes missing measurements are zero.</div>
+            <div class="samples" id="samples" aria-label="Sample scenarios"></div>
+            <div class="actions"><button class="primary" id="analyze-button" type="submit" disabled>Analyze scenario <span aria-hidden="true">→</span></button><button class="quiet" id="reset" type="button">Clear</button></div>
+            <p class="form-note" id="interface-loading">Starting the interface… If this message stays, open the site through the local Python server.</p>
+          </form>
+          <form id="model-form" hidden>
+            <label for="model">Thermodynamic model</label><select id="model"></select>
+            <p class="form-note">Leave unknown values blank. We will derive them from your other inputs where possible and explain each calculation. Example values are illustrative; enter your own measurements.</p>
+            <div id="fields" class="fields"></div>
+            <p class="form-note" id="model-note"></p>
+            <button class="primary" type="submit">Calculate result <span aria-hidden="true">→</span></button>
+          </form>
+        </div>
+        <div class="panel result-panel" id="result-panel" aria-labelledby="result-title">
+          <div class="result-head"><p class="eyebrow" id="result-title">ANALYSIS OUTPUT</p><span id="status" class="badge" role="status">Ready</span></div>
+          <div id="result" aria-live="polite" aria-atomic="false"><div class="empty"><span class="empty-icon" aria-hidden="true">◎</span><h3>Your results appear here</h3><p>Run a scenario to compare claimed output with the ideal limit and see which checks apply.</p></div></div>
+
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="examples" aria-labelledby="examples-title">
+      <div class="section-intro"><p class="eyebrow">02 / EXPERIMENT</p><h2 id="examples-title">Try a worked example</h2><p>Load an example, change the inputs, and see what happens.</p></div>
+      <div id="example-list" class="examples"></div>
+    </section>
+
+    <section class="section" id="models" aria-labelledby="models-title">
+      <div class="section-intro"><p class="eyebrow">03 / MODELS</p><h2 id="models-title">Which model checks which technology</h2><p>The website and the terminal program use the same engine file and the same model numbers. You choose a technology or describe a problem; the mapping layer sends it to one of these models.</p></div>
+      <div class="model-map-wrap"><table class="model-map">
+        <thead><tr><th>#</th><th>Thermodynamic model</th><th>Technologies and examples</th><th>What it checks</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td class="num">1</td><td><strong>Fixed-temperature reservoir cyclic heat engine</strong></td><td>Inventor’s engine, Stirling engine, power plant with given source and sink temperatures</td><td>Carnot limit, First Law, S<sub>gen</sub></td><td><span class="role core">Core</span></td></tr>
+          <tr><td class="num">2</td><td><strong>Finite hot stream + finite cold stream (work produced)</strong></td><td>Waste-heat engines, CL 202 Base (coffee from GPU waste heat)</td><td>Exact limit with S<sub>gen</sub> = 0; T<sub>eff</sub> shown for information</td><td><span class="role core">Core</span></td></tr>
+          <tr><td class="num">3</td><td><strong>General steady control volume</strong></td><td>Turbines, compressors, nozzles, pumps (h and s from tables)</td><td>Mass, energy and entropy balances</td><td><span class="role core">Core</span></td></tr>
+          <tr><td class="num">4</td><td><strong>Closed system</strong></td><td>Piston-cylinder, sealed tank, cycles with several reservoirs, “all heat into work” claims</td><td>Energy balance and S<sub>gen</sub> = ΔS − ΣQ/T</td><td><span class="role core">Core</span></td></tr>
+          <tr><td class="num">5</td><td><strong>Property changes only</strong></td><td>Δh, Δs, effective temperature, phase-change temperature (used in CL 202 Modified)</td><td>Calculation utility — no verdict</td><td><span class="role utility">Utility</span></td></tr>
+          <tr><td class="num">6</td><td><strong>Unsupported / future domain</strong></td><td>Refrigerators and heat pumps, tidal, transient systems</td><td>Fallback — “model required”</td><td><span class="role fallback">Fallback</span></td></tr>
+          <tr><td class="num">7</td><td><strong>Heat exchanger (no shaft work)</strong></td><td>Heat recovery, data-centre coolant, oil–water exchanger</td><td>Energy closure, S<sub>gen</sub>, temperature cross, exergy destroyed</td><td><span class="role core">Core</span></td></tr>
+          <tr><td class="num">8</td><td><strong>Mechanical energy harvesting</strong></td><td>Walking generator (both input styles), pedalling, wind (Betz), hydro (ρgQH), no-input claims</td><td>Output ≤ recoverable mechanical input</td><td><span class="role extension">Extension</span></td></tr>
+          <tr><td class="num">9</td><td><strong>Solar radiation conversion</strong></td><td>Solar panels and converters</td><td>Petela–Landsberg limit</td><td><span class="role extension">Extension</span></td></tr>
+          <tr><td class="num">10</td><td><strong>Electrochemical conversion</strong></td><td>Fuel cells (H<sub>2</sub>, methane, methanol, ethanol)</td><td>−ΔG × reaction rate</td><td><span class="role extension">Extension</span></td></tr>
+        </tbody></table></div>
+      <p class="model-map-note">Models 1–7 are the core thermodynamic models of the M3 terminal program. Model 5 is a calculation utility and Model 6 a fallback. Models 8–10 are domain extensions for technologies that are not heat engines, so no Carnot temperature is invented for them.</p>
+    </section>
+    <section class="section method" id="method" aria-labelledby="method-title">
+      <div class="section-intro"><p class="eyebrow">04 / UNDERSTAND</p><h2 id="method-title">How the tester decides</h2></div>
+      <div class="method-grid"><article><span>01</span><h3>Read and map</h3><p>The analyzer finds each quantity and its unit, decides its role from the surrounding words, and identifies the source, the sink and the claimed output.</p></article>
+        <article><span>02</span><h3>Calculate the limit</h3><p>The Python engine applies the selected model and checks energy or entropy balances when the data support them.</p></article>
+        <article><span>03</span><h3>Interpret the verdict</h3><p>Feasible means the available balances and applicable limit pass within the selected model. Contradictions are rejected. Undetermined inputs remain insufficient data. This is a thermodynamic assessment, not proof of engineering or economic viability.</p></article></div>
+    </section>
+  </main>
+  <footer><span class="brand"><span class="mark">◈</span>Thermo<span>Lab</span></span><span>CL 202 · Thermodynamic Feasibility Tester</span></footer>
+</body>
+</html>
