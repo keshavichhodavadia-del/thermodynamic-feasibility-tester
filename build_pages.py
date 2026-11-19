@@ -11,7 +11,7 @@ def build(output=None):
     output.mkdir(parents=True, exist_ok=True)
     for name in ("index.html", "style.css", "app.js", "engine-worker.js"):
         shutil.copyfile(ROOT / "website" / "dist" / name, output / name)
-    for path in ("thermodynamic_feasibility_tester_MASTER.py", "auto_analyzer.py", "input_derivation.py", "run_mock_assignments.py", "scenario_input.py",
+    for path in ("thermodynamic_feasibility_tester_MASTER.py", "auto_analyzer.py", "run_mock_assignments.py", "scenario_input.py",
                  "website/local_scenarios.py", "website/dist/solver.py"):
         target = output / "python" / path
         target.parent.mkdir(parents=True, exist_ok=True)

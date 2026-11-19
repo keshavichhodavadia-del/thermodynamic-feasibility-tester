@@ -87,7 +87,6 @@ def resource_examples() -> List[Dict[str, Any]]:
             "model": "mechanical_power", "title": "Walking energy harvester",
             "description": "Illustrative recoverable mechanical energy per step at the converter input.",
             "recoverable_energy_per_event_j": 4.0, "events_per_s": 2.0, "W_out_kw": 0.005,
-            "heat_rejected_kw": 0.003, "heat_rejection_temperature_K": 300.0,
         },
         {
             "model": "solar_blackbody", "title": "Ideal blackbody radiation example",
@@ -97,9 +96,7 @@ def resource_examples() -> List[Dict[str, Any]]:
         {
             "model": "reaction_gibbs", "title": "Illustrative exergonic cell reaction",
             "reaction_direction": "Reactants to products as specified for Delta G",
-            "delta_G_kj_per_mol_rxn": -200.0, "delta_H_kj_per_mol_rxn": -250.0,
-            "reaction_rate_mol_rxn_s": 0.01, "reaction_temperature_K": 300.0, "W_out_kw": 1.0,
-            "heat_into_reactor_kw": -1.5, "heat_boundary_temperature_K": 300.0,
+            "delta_G_kj_per_mol_rxn": -200.0, "reaction_rate_mol_rxn_s": 0.01, "W_out_kw": 1.0,
         },
     ]
 
@@ -163,15 +160,14 @@ def self_test() -> List[str]:
     assert abs(finite.calculations["heat_released_by_hot_stream_kw"] - 836.0) < 1e-8
     assert finite.calculations["S_gen_dot_kw_per_k"] > 0
     assert finite.checks["first_law"]["passed"]
-    assert finite.verdict.status == "FEASIBLE / NOT REJECTED"
-    assert finite.calculations["strict_reversible_work_limit_kw"] is not None
+    assert finite.verdict.status == "INSUFFICIENT DATA / MODEL REQUIRED"
     passed.append("finite-stream properties, energy consistency and entropy generation")
 
     # Explicitly selected effective-temperature reference is checked but labelled.
     finite_limit_case = demonstration_cases()[3]
     finite_limit = analyse_case(finite_limit_case)
     assert finite_limit.calculations["effective_temperature_efficiency_reference"] is not None
-    assert finite_limit.verdict.status == "FEASIBLE / NOT REJECTED"
+    assert finite_limit.verdict.status == "INSUFFICIENT DATA / MODEL REQUIRED"
     assert finite_limit.checks["effective_temperature_reference_comparison"] == "BELOW REFERENCE"
     passed.append("effective-temperature reference is informational, not a universal feasibility limit")
 
@@ -241,25 +237,25 @@ def self_test() -> List[str]:
     assert bad_cv.verdict.status == "NOT FEASIBLE"
     passed.append("steady control-volume mass conservation check")
 
-    # A determined work output can be assessed; its provenance stays derived.
+    # No independent work claim means no performance verdict, even if a
+    # user elects to display the effective-temperature comparison.
     no_claim = dict(demonstration_cases()[3])
     no_claim.pop("W_out_kw")
     no_claim_result = analyse_case(no_claim)
-    assert no_claim_result.verdict.status == "FEASIBLE / NOT REJECTED"
-    assert no_claim_result.input_status["W_out_kw"] == "DERIVED"
-    passed.append("missing independent work is calculated and checked against the strict limit")
+    assert no_claim_result.verdict.status == "INSUFFICIENT DATA / MODEL REQUIRED"
+    passed.append("missing independent work claim returns insufficient data")
 
     # Missing work outputs are derived only when the balance data determine them.
     derived_closed = analyse_case({"model": "closed_system", "delta_E_kj": 10.0,
         "delta_S_system_kj_K": 0.06, "heat": [{"heat_into_system_kj": 15.0, "boundary_temperature_K": 300.0}]})
     assert abs(derived_closed.inputs["W_out_kj"] - 5.0) < 1e-12
-    assert derived_closed.input_status["W_out_kj"] == "DERIVED"
+    assert derived_closed.input_status["W_out_kj"] == "DERIVED FROM CLOSED-SYSTEM FIRST LAW"
     derived_cv = analyse_case({"model": "steady_control_volume",
         "inlets": [{"mass_flow_kg_s": 1.0, "specific_enthalpy_kj_kg": 100.0, "specific_entropy_kj_kg_k": 1.0}],
         "outlets": [{"mass_flow_kg_s": 1.0, "specific_enthalpy_kj_kg": 80.0, "specific_entropy_kj_kg_k": 1.2}],
         "heat": []})
     assert abs(derived_cv.inputs["W_out_kw"] - 20.0) < 1e-12
-    assert derived_cv.input_status["W_out_kw"] == "DERIVED"
+    assert derived_cv.input_status["W_out_kw"] == "DERIVED FROM STEADY-FLOW FIRST LAW"
     passed.append("safe derivation and provenance tracking for closed-system and steady-CV work")
 
     # Negative entropy generation must be rejected.
@@ -268,7 +264,7 @@ def self_test() -> List[str]:
     assert process_classification(-0.01) == "IMPOSSIBLE — SECOND LAW VIOLATION"
     passed.append("negative entropy generation correctly rejected")
 
-    # Model 7: rounded textbook data, temperature cross.
+    # Model 6 (heat exchanger): rounded textbook data, temperature cross.
     rounded = {"model": "finite_stream_heat_recovery",
                "hot_stream": {"name": "Hot oil", "mass_flow_kg_s": 2.0, "T_in_K": 450.0, "T_out_K": 350.0,
                               "cp_model": "constant", "cp_kj_kg_k": 2.2},
@@ -284,55 +280,44 @@ def self_test() -> List[str]:
     crossed_result = analyse_case(crossed)
     assert crossed_result.calculations["S_gen_dot_kw_per_k"] > 0
     assert crossed_result.verdict.status == "NOT FEASIBLE — TEMPERATURE CROSS"
-    passed.append("Model 7 rounding allowance and temperature-cross rejection")
+    passed.append("Model 6 rounding allowance and temperature-cross rejection")
 
-    # Model 8: walking harvester 4 J x 2 steps/s = 8 W.
+    # Model 7: walking harvester 4 J x 2 steps/s = 8 W.
     walking = analyse_case(resource_examples()[0])
     assert abs(walking.calculations["reversible_power_limit_kw"] - 0.008) < 1e-12
     assert walking.verdict.status == "FEASIBLE / NOT REJECTED"
     assert analyse_case({**resource_examples()[0], "W_out_kw": 0.010}).verdict.status == "NOT FEASIBLE"
-    passed.append("Model 8 mechanical limit (8 W walking example; 10 W claim rejected)")
+    passed.append("Model 7 mechanical limit (8 W walking example; 10 W claim rejected)")
 
-    # Model 9: Petela-Landsberg fraction for 5778 K / 300 K.
+    # Model 8: Petela-Landsberg fraction for 5778 K / 300 K.
     r = 300.0 / 5778.0
     solar = analyse_case(resource_examples()[1])
     assert abs(solar.calculations["petela_landsberg_exergy_fraction"] - (1 - 4 * r / 3 + r ** 4 / 3)) < 1e-12
     assert solar.verdict.status == "FEASIBLE / NOT REJECTED"
-    passed.append("Model 9 Petela-Landsberg fraction")
+    passed.append("Model 8 Petela-Landsberg fraction")
 
-    # Model 10: -Delta G x rate = 200 kJ/mol x 0.01 mol/s = 2 kW.
+    # Model 9: -Delta G x rate = 200 kJ/mol x 0.01 mol/s = 2 kW.
     gibbs = analyse_case(resource_examples()[2])
     assert abs(gibbs.calculations["reversible_power_limit_kw"] - 2.0) < 1e-12
     assert analyse_case({**resource_examples()[2], "W_out_kw": 2.5}).verdict.status == "NOT FEASIBLE"
-    passed.append("Model 10 Gibbs-energy limit (2 kW) and rejection of 2.5 kW claim")
-
-    # New Model 3/4 reversible exergy limits and complete Model 8/10 balances.
-    cv_in = {"mass_flow_kg_s": 1.0, "specific_enthalpy_kj_kg": 3231.7,
-             "specific_entropy_kj_kg_k": 6.9235, "specific_enthalpy_dead_state_kj_kg": 104.9,
-             "specific_entropy_dead_state_kj_kg_k": 0.367}
-    cv_out = {"mass_flow_kg_s": 1.0, "specific_enthalpy_kj_kg": 2675.0,
-              "specific_entropy_kj_kg_k": 7.3589, "specific_enthalpy_dead_state_kj_kg": 104.9,
-              "specific_entropy_dead_state_kj_kg_k": 0.367}
-    cv_exergy = analyse_case({"model": "steady_control_volume", "inlets": [cv_in], "outlets": [cv_out],
-                              "heat": [], "W_out_kw": 556.7, "T0_K": 298.15})
-    assert cv_exergy.verdict.status == "FEASIBLE / NOT REJECTED"
-    assert cv_exergy.calculations["reversible_shaft_work_limit_kw"] > 556.7
-    closed_exergy = analyse_case({"model": "closed_system", "delta_E_kj": 10.0,
-        "delta_S_system_kj_K": 0.06, "heat": [{"heat_into_system_kj": 15.0, "boundary_temperature_K": 300.0}],
-        "W_out_kj": 5.0, "T0_K": 300.0, "environment_pressure_kPa": 101.325, "delta_V_m3": 0.0})
-    assert closed_exergy.verdict.status == "FEASIBLE / NOT REJECTED"
-    assert abs(closed_exergy.calculations["reversible_useful_work_limit_kj"] - 8.0) < 1e-12
-    mech = analyse_case(resource_examples()[0])
-    assert mech.checks["first_law_balance"] == "PASS" and mech.checks["entropy_balance"] == "PASS"
-    cell = analyse_case(resource_examples()[2])
-    assert cell.checks["first_law_balance"] == "PASS" and cell.checks["entropy_balance"] == "PASS"
-    passed.append("Models 3/4 exergy limits and Models 8/10 complete balance checks")
+    passed.append("Model 9 Gibbs-energy limit (2 kW) and rejection of 2.5 kW claim")
 
     # Registry is complete and consistent with the dispatch table.
-    assert [entry["number"] for entry in MODEL_REGISTRY] == list(range(1, 11))
-    for entry in MODEL_REGISTRY:
+    numbered = [entry for entry in MODEL_REGISTRY if entry["number"] is not None]
+    assert [entry["number"] for entry in numbered] == list(range(1, 10))
+    for entry in numbered:
         assert model_label(entry["key"]).startswith(f"Model {entry['number']} ")
-    passed.append("model registry numbers 1-10")
+    assert {e["key"] for e in MODEL_REGISTRY if e["number"] is None} == {"property_change", "unsupported_domain"}
+    passed.append("model registry: selectable models numbered 1-9; property utility and fallback unnumbered")
+
+    # Model 5: refrigerator 500 kJ from 270 K, 650 kJ to 300 K, 150 kJ work -> COP 3.33 <= Carnot 9, S_gen > 0.
+    fridge = analyse_case({"model": "refrigeration_cycle", "mode": "refrigerator", "energy_unit": "kJ",
+                           "Q_cold": 500, "Q_hot": 650, "W_in": 150, "T_cold_K": 270, "T_hot_K": 300})
+    assert abs(fridge.calculations["carnot_COP_refrigerator"] - 9.0) < 1e-12
+    assert fridge.verdict.status == "FEASIBLE / NOT REJECTED"
+    assert analyse_case({"model": "refrigeration_cycle", "Q_cold": 5, "W_in": 0.1, "T_cold_K": 260,
+                         "T_hot_K": 300}).verdict.status == "NOT FEASIBLE"
+    passed.append("Model 5 refrigerator Carnot COP (9) and rejection of COP 50")
 
     # Model 2 exact limit: hot 1 kg/s 600->400 K, cold 2 kg/s from 300 K, Cp 4.18 -> W_max = 272.34 kW.
     strict = dict(demonstration_cases()[2], apply_strict_reversible_limit=True)
@@ -370,16 +355,17 @@ def write_templates(folder: str = "thermo_case_templates") -> Path:
             "W_out_kw": 186.01,
             "apply_effective_temperature_limit": False
         },
+        "refrigeration_cycle.json": {
+            "title": "My refrigerator or heat pump", "model": "refrigeration_cycle", "mode": "refrigerator",
+            "energy_unit": "kW", "T_cold_K": 255.15, "T_hot_K": 298.15, "Q_cold": 0.3, "W_in": 0.1,
+            "description": "Give any two of Q_cold, Q_hot and W_in; the third comes from the First Law."},
         "steady_control_volume.json": {
             "title": "My steady control volume", "model": "steady_control_volume",
             "description": "List every mass and heat interaction crossing the chosen boundary.",
-            "T0_K": 298.15,
             "inlets": [{"mass_flow_kg_s": 1.0, "specific_enthalpy_kj_kg": 100.0,
-                        "specific_entropy_kj_kg_k": 1.0, "specific_enthalpy_dead_state_kj_kg": 0.0,
-                        "specific_entropy_dead_state_kj_kg_k": 0.0}],
+                        "specific_entropy_kj_kg_k": 1.0}],
             "outlets": [{"mass_flow_kg_s": 1.0, "specific_enthalpy_kj_kg": 80.0,
-                         "specific_entropy_kj_kg_k": 1.1, "specific_enthalpy_dead_state_kj_kg": 0.0,
-                         "specific_entropy_dead_state_kj_kg_k": 0.0}],
+                         "specific_entropy_kj_kg_k": 1.1}],
             "heat": [], "W_out_kw": 20.0, "include_kinetic_potential": False
         },
         "closed_system.json": {
@@ -387,7 +373,7 @@ def write_templates(folder: str = "thermo_case_templates") -> Path:
             "description": "Specify total system changes and all heat transfers.",
             "delta_E_kj": 10.0, "delta_S_system_kj_K": 0.06,
             "heat": [{"heat_into_system_kj": 15.0, "boundary_temperature_K": 300.0}],
-            "W_out_kj": 5.0, "T0_K": 300.0, "environment_pressure_kPa": 101.325, "delta_V_m3": 0.0
+            "W_out_kj": 5.0
         },
         "property_change.json": {
             "title": "My property calculation", "model": "property_change",

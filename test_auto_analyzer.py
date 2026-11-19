@@ -49,9 +49,9 @@ class M3ValidationCases(unittest.TestCase):
     def test_2_finite_streams_infer_cold_outlet(self):
         response, status = verdict("Hot water at 1 kg/s cools from 600 K to 400 K with Cp = 4.18 kJ/(kg K). Cold "
                                    "water at 2 kg/s enters at 300 K, Cp 4.18 kJ/(kg K). The device claims 186 kW.")
-        case = response["cases"]["finite_stream_engine"]
         self.assertEqual(status, "FEASIBLE / NOT REJECTED")
-        self.assertAlmostEqual(case["cold_stream"]["T_out_K"], 377.751, places=2)
+        # The engine derives the cold outlet from the First Law (Q_cold = Q_hot - W).
+        self.assertAlmostEqual(response["result"]["calculations"]["cold_outlet_from_first_law_K"], 377.751, places=2)
         self.assertTrue(response["result"]["checks"]["first_law"]["passed"])
 
     def test_3_variable_cp_and_phase_change(self):
@@ -92,25 +92,25 @@ class DomainTests(unittest.TestCase):
          "NOT FEASIBLE", "closed_system"),
         ("A heat engine takes in heat from a reservoir at 400 K and rejects heat to a reservoir at 500 K while "
          "producing 10 kW of work from 50 kW of heat.", "NOT FEASIBLE", "closed_system"),
-        ("Waste heat from flue gases at 3 kg/s with Cp = 1.1 kJ/kg K cooling from 450 °C to 120 °C is used to generate 250 kW of "
+        ("Waste heat from flue gases at 3 kg/s cooling from 450 °C to 120 °C is used to generate 250 kW of "
          "electricity. The surroundings are at 25 °C.", "FEASIBLE / NOT REJECTED", "fixed_reservoir_engine"),
-        ("A geothermal power plant uses geothermal water at 440 kg/s cooling from 160°C to 25°C as the heat "
-         "source, Cp = 4.18 kJ/kg K, and produces 22 MW of net power. The environment temperature is 25°C.",
+        ("A geothermal power plant uses geothermal water extracted at 160°C at a rate of 440 kg/s as the heat "
+         "source and produces 22 MW of net power. The environment temperature is 25°C.",
          "FEASIBLE / NOT REJECTED", "fixed_reservoir_engine"),
         ("A shoe-mounted generator recovers 4 J per step at 120 steps per minute and claims to generate 5 W of "
-         "electricity.", "INSUFFICIENT DATA / MODEL REQUIRED", "mechanical_power"),
+         "electricity.", "FEASIBLE / NOT REJECTED", "mechanical_power"),
         ("A person pedals a bicycle generator with 150 W of mechanical power and claims 160 W of electricity.",
          "NOT FEASIBLE", "mechanical_power"),
         ("A machine produces 10 kW without any energy input.", "NOT FEASIBLE", "mechanical_power"),
         ("A wind turbine with 40 m rotor diameter in 10 m/s wind claims 800 kW. Air density 1.2 kg/m3.",
          "NOT FEASIBLE", "mechanical_power"),
-        ("Water falls 20 m at 50 L/s through a micro-hydro turbine; the generator claims 9 kW. Water density 1000 kg/m3.",
-         "INSUFFICIENT DATA / MODEL REQUIRED", "mechanical_power"),
-        ("A PV panel of 1.6 m² under 800 W/m² of sunlight produces 350 W. Source temperature 5778 K and ambient temperature 300 K.", "FEASIBLE / NOT REJECTED",
+        ("Water falls 20 m at 50 L/s through a micro-hydro turbine; the generator claims 9 kW.",
+         "FEASIBLE / NOT REJECTED", "mechanical_power"),
+        ("A PV panel of 1.6 m² under 800 W/m² of sunlight produces 350 W.", "FEASIBLE / NOT REJECTED",
          "solar_blackbody"),
-        ("A methanol fuel cell uses 0.5 g/s of methanol and delivers 8 kW. Gibbs energy -702.4 kJ/mol.", "INSUFFICIENT DATA / MODEL REQUIRED",
+        ("A methanol fuel cell uses 0.5 g/s of methanol and delivers 8 kW.", "FEASIBLE / NOT REJECTED",
          "reaction_gibbs"),
-        ("A fuel cell running on hydrogen at 2 g/s claims 300 kW. Gibbs energy -237.1 kJ/mol.", "NOT FEASIBLE", "reaction_gibbs"),
+        ("A fuel cell running on hydrogen at 2 g/s claims 300 kW.", "NOT FEASIBLE", "reaction_gibbs"),
     ]
 
     def test_domains_and_verdicts(self):
@@ -127,10 +127,10 @@ class DomainTests(unittest.TestCase):
         import math
         self.assertAlmostEqual(limit, 16 / 27 * 0.5 * 1.2 * math.pi * 20 ** 2 * 1000 / 1000, places=6)
 
-    def test_supplied_heat_capacity_is_not_replaced(self):
-        response, _ = verdict("Waste heat from flue gases at 3 kg/s with Cp = 1.1 kJ/kg K cooling from 450 °C to 120 °C is used to "
+    def test_assumptions_are_reported(self):
+        response, _ = verdict("Waste heat from flue gases at 3 kg/s cooling from 450 °C to 120 °C is used to "
                               "generate 250 kW of electricity. The surroundings are at 25 °C.")
-        self.assertFalse(any("Cp" in item for item in response["analysis"]["assumptions"]))
+        self.assertTrue(any("Cp" in item for item in response["analysis"]["assumptions"]))
         self.assertIn("450 °C", [item["quote"] for item in response["analysis"]["extracted"]])
 
     def test_ambiguous_claim_is_not_judged(self):
@@ -138,15 +138,17 @@ class DomainTests(unittest.TestCase):
                                    "100 kW of heat, and claims to generate 50 to 60 kW.")
         self.assertEqual(status, "needs_values")
 
-    def test_refrigerator_is_out_of_scope(self):
-        _, status = verdict("A refrigerator removes 5 kW from a cold space at 260 K and rejects heat to a room "
-                            "at 300 K using 1 kW of work.")
-        self.assertEqual(status, "INSUFFICIENT DATA / MODEL REQUIRED")
+    def test_refrigerator_is_evaluated_with_carnot_cop(self):
+        # Refrigerators are now a supported model (Model 5): COP 5 is below the Carnot COP 6.5.
+        response, status = verdict("A refrigerator removes 5 kW from a cold space at 260 K and rejects heat to a room "
+                                   "at 300 K using 1 kW of work.")
+        self.assertEqual(status, "FEASIBLE / NOT REJECTED")
+        self.assertAlmostEqual(response["result"]["calculations"]["carnot_COP_refrigerator"], 6.5)
 
 
 class WebsiteIntegrationTests(unittest.TestCase):
     def test_solver_returns_analysis_and_analyzer_code(self):
-        response = solve({"scenario": "A hydro plant with a 50 m head and 10 m3/s flow claims 5 MW. Water density 1000 kg/m3."})
+        response = solve({"scenario": "A hydro plant with a 50 m head and 10 m3/s flow claims 5 MW."})
         self.assertEqual(response["status"], "evaluated")
         self.assertEqual(response["result"]["verdict"]["status"], "NOT FEASIBLE")
         self.assertEqual(response["analysis"]["domain"], "hydro")
@@ -159,10 +161,11 @@ class WebsiteIntegrationTests(unittest.TestCase):
         self.assertEqual(response["status"], "needs_values")
         self.assertTrue(any("Wind speed" in item for item in response["analysis"]["missing"]))
 
-    def test_assignments_still_use_their_runner(self):
+    def test_website_no_longer_runs_the_course_assignments(self):
+        # The CL 202 assignments were removed from the website; run_mock_assignments.py is kept for the terminal.
         response = solve({"scenario": "Run CL 202 Assignment 1 Base for suffix 100."})
-        self.assertEqual(response["status"], "evaluated")
-        self.assertEqual(response["route"], "assignment_base")
+        self.assertNotEqual(response.get("route"), "assignment_base")
+        self.assertNotIn("assignment_base", response.get("models", {}))
 
 
 if __name__ == "__main__":
@@ -179,13 +182,13 @@ class HeatExchangerTests(unittest.TestCase):
     def test_rounded_textbook_exchanger(self):
         response, status = verdict(self.TEXT)
         calc = response["result"]["calculations"]
-        self.assertEqual(status, "NOT FEASIBLE UNDER THE STATED INSULATED-EXCHANGER MODEL")
+        self.assertEqual(status, "SECOND-LAW ADMISSIBLE / NOT REJECTED")
         self.assertEqual(response["analysis"]["model"], "finite_stream_heat_recovery")
         hot = response["cases"]["finite_stream_heat_recovery"]["hot_stream"]
         self.assertEqual((hot["mass_flow_kg_s"], hot["cp_kj_kg_k"], hot["T_in_K"]), (2.0, 2.2, 450.0))
         self.assertAlmostEqual(calc["heat_released_by_hot_stream_kw"], 440.0)
         self.assertAlmostEqual(calc["S_gen_dot_kw_per_k"], 4.4 * math.log(350 / 450) + 1.2 * 4.5833 * math.log(380 / 300))
-        self.assertIsNone(calc["exergy_destroyed_kw"])  # no environment temperature was supplied
+        self.assertAlmostEqual(calc["exergy_destroyed_kw"], 298.15 * calc["S_gen_dot_kw_per_k"])
 
     def test_cool_hot_oil_is_the_hot_stream(self):
         response, _ = verdict(self.TEXT)
@@ -199,7 +202,9 @@ class HeatExchangerTests(unittest.TestCase):
                                    "Surroundings are at 25 °C.")
         case = response["cases"]["finite_stream_heat_recovery"]
         self.assertEqual(status, "SECOND-LAW ADMISSIBLE / NOT REJECTED")
-        self.assertAlmostEqual(case["cold_stream"]["T_out_K"], 300 + 440 / (1.2 * 4.18))
+        # The engine (not the analyzer) derives the missing outlet from the energy balance.
+        self.assertNotIn("T_out_K", case["cold_stream"])
+        self.assertAlmostEqual(response["result"]["calculations"]["cold_outlet_from_first_law_K"], 300 + 440 / (1.2 * 4.18))
         self.assertAlmostEqual(case["T0_K"], 298.15)
 
     def test_temperature_cross_is_rejected(self):
@@ -215,24 +220,43 @@ class HeatExchangerTests(unittest.TestCase):
         self.assertTrue(status.startswith("NOT FEASIBLE"), status)
 
 
+class TwoWaterStreamsTests(unittest.TestCase):
+    """'A hot water stream ... A cold water stream ...' must be two streams (Model 2), not stream + reservoir."""
+    TEXT = ("A hot water stream flows at 1 kg/s and cools from 90°C to 60°C. A cold water stream flows at 1 kg/s "
+            "and enters at 20°C. The system claims to produce {w} kW of shaft work. Assume both streams have a "
+            "specific heat capacity of 4.18 kJ/kg K. Check feasibility.")
+
+    def run_claim(self, w):
+        response = analyze_scenario(self.TEXT.format(w=w))
+        self.assertEqual(response["route"], "finite_stream_engine")
+        return response["result"]
+
+    def test_claim_above_heat_released_is_rejected_by_model_2(self):
+        result = self.run_claim(150)
+        self.assertEqual(result["verdict"]["status"], "NOT FEASIBLE")
+        self.assertAlmostEqual(result["calculations"]["strict_reversible_work_limit_kw"], 15.056, places=2)
+
+    def test_reversible_limit_separates_feasible_and_infeasible_claims(self):
+        self.assertEqual(self.run_claim(15)["verdict"]["status"], "FEASIBLE / NOT REJECTED")
+        self.assertEqual(self.run_claim(16)["verdict"]["status"], "NOT FEASIBLE")
+
+
 class ModelMappingTests(unittest.TestCase):
     """Text → model number mapping (same numbers as the terminal program)."""
     CASES = [
         ("Steam enters an adiabatic turbine with h = 3231.7 kJ/kg and s = 6.9235 kJ/kg K and leaves with "
          "h = 2675.0 kJ/kg and s = 7.3589 kJ/kg K. The mass flow rate is 1 kg/s. It produces 556.7 kW.", 3,
-         "INSUFFICIENT DATA / MODEL REQUIRED"),
+         "FEASIBLE / NOT REJECTED"),   # all balances complete and closed -> admissible
         ("Steam enters a turbine with h = 3231.7 kJ/kg and s = 6.9235 kJ/kg K and leaves with h = 2675.0 kJ/kg and "
          "s = 6.80 kJ/kg K. Mass flow 1 kg/s. It is adiabatic and produces 556.7 kW.", 3, "NOT FEASIBLE"),
         ("A gas in a piston-cylinder device receives 15 kJ of heat from a reservoir at 300 K. Its internal energy "
          "increases by 10 kJ and its entropy increases by 0.04 kJ/K. The gas does 5 kJ of work.", 4, "NOT FEASIBLE"),
-        ("Water is heated from 300 K to 350 K with Cp = 4.18 kJ/kg K. Calculate the enthalpy change, entropy change "
-         "and effective temperature.", 5, "PROPERTY CALCULATION ONLY"),
         ("A refrigerator removes 5 kW from a cold space at 260 K and rejects heat to a room at 300 K using 1 kW of "
-         "work.", 6, "INSUFFICIENT DATA / MODEL REQUIRED"),
-        (HeatExchangerTests.TEXT, 7, "NOT FEASIBLE UNDER THE STATED INSULATED-EXCHANGER MODEL"),
-        ("A wind turbine with 40 m rotor diameter in 10 m/s wind claims 800 kW. Air density 1.2 kg/m3.", 8, "NOT FEASIBLE"),
-        ("A PV panel of 1.6 m² under 800 W/m² of sunlight produces 350 W. Source temperature 5778 K and ambient temperature 300 K.", 9, "FEASIBLE / NOT REJECTED"),
-        ("A fuel cell running on hydrogen at 2 g/s claims 300 kW. Gibbs energy -237.1 kJ/mol.", 10, "NOT FEASIBLE"),
+         "work.", 5, "FEASIBLE / NOT REJECTED"),
+        (HeatExchangerTests.TEXT, 6, "SECOND-LAW ADMISSIBLE / NOT REJECTED"),
+        ("A wind turbine with 40 m rotor diameter in 10 m/s wind claims 800 kW.", 7, "NOT FEASIBLE"),
+        ("A PV panel of 1.6 m² under 800 W/m² of sunlight produces 350 W.", 8, "FEASIBLE / NOT REJECTED"),
+        ("A fuel cell running on hydrogen at 2 g/s claims 300 kW.", 9, "NOT FEASIBLE"),
         ("An inventor claims his engine takes 100 kW of heat from a source at 600 K, rejects heat to surroundings "
          "at 300 K and produces 60 kW of work.", 1, "NOT FEASIBLE"),
     ]
@@ -245,7 +269,11 @@ class ModelMappingTests(unittest.TestCase):
                 self.assertEqual(response["result"]["verdict"]["status"], expected)
 
     def test_property_values(self):
-        calc = solve({"scenario": self.CASES[3][0]})["result"]["calculations"]
+        # The property calculator is no longer a numbered model, but text questions still reach it.
+        response = solve({"scenario": "Water is heated from 300 K to 350 K with Cp = 4.18 kJ/kg K. Calculate the "
+                                      "enthalpy change, entropy change and effective temperature."})
+        self.assertEqual(response["result"]["verdict"]["status"], "PROPERTY CALCULATION ONLY")
+        calc = response["result"]["calculations"]
         self.assertAlmostEqual(calc["delta_h_kj_kg"], 209.0)
         self.assertAlmostEqual(calc["effective_temperature_K"], 50 / math.log(350 / 300))
 

@@ -14,7 +14,6 @@ sys.path.insert(0, str(DIST.parent.parent))
 sys.path.insert(1, str(DIST))
 from solver import solve
 import thermodynamic_feasibility_tester_MASTER as engine
-import run_mock_assignments as assignments
 import auto_analyzer
 from website import local_scenarios
 
@@ -33,8 +32,7 @@ class Handler(SimpleHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_GET(self):
-        sources = {"/api/source/engine": engine.__file__, "/api/source/assignments": assignments.__file__,
-                   "/api/source/parser": local_scenarios.__file__,
+        sources = {"/api/source/engine": engine.__file__, "/api/source/parser": local_scenarios.__file__,
                    "/api/source/analyzer": auto_analyzer.__file__}
         if self.path in sources:
             data = Path(sources[self.path]).read_bytes()

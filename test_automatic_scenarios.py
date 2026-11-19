@@ -58,24 +58,8 @@ class AutomaticScenarioTests(unittest.TestCase):
         chemical = solve({"scenario": "A fuel cell has reaction direction: H2 + 0.5 O2 to H2O(l); "
                           "Gibbs energy -237.141 kJ/mol reaction; reaction rate 0.01 mol/s; "
                           "claimed electrical output 2 kW."})
-        self.assertEqual(chemical["status"], "needs_values")
-        self.assertEqual(chemical["result"]["verdict"]["status"], "INSUFFICIENT DATA / MODEL REQUIRED")
-        self.assertTrue(any("delta_H_kj_per_mol_rxn" in item for item in chemical["analysis"]["missing"]))
-        self.assertEqual(chemical["prefill"]["W_out_kw"], 2.0)
-
-    def test_model3_and_model4_missing_reference_states_offer_manual_inputs(self):
-        cv = solve({"scenario": "An adiabatic steady steam turbine has inlet 1 kg/s, h=3231.7 kJ/kg and s=6.9235 kJ/kg K; "
-                              "outlet h=2675 kJ/kg and s=7.3589 kJ/kg K. It produces 556.7 kW."})
-        self.assertEqual(cv["status"], "needs_values")
-        self.assertIn("cv_h_in", cv["prefill"])
-        self.assertTrue(any("dead_state" in item for item in cv["analysis"]["missing"]))
-
-        closed = solve({"scenario": "A closed system has an internal energy change of 10 kJ and entropy change "
-                                   "of 0.06 kJ/K. It receives 15 kJ of heat at a boundary temperature of 300 K "
-                                   "and produces 5 kJ of work."})
-        self.assertEqual(closed["status"], "needs_values")
-        self.assertEqual(closed["prefill"]["cs_q"], 15.0)
-        self.assertTrue(any("environment_pressure_kPa" in item for item in closed["analysis"]["missing"]))
+        self.assertEqual(chemical["status"], "evaluated")
+        self.assertEqual(chemical["result"]["verdict"]["status"], "FEASIBLE / NOT REJECTED")
 
     def test_ambiguous_output_does_not_receive_a_verdict(self):
         text = ("A heat engine has hot reservoir 600 K and cold reservoir 300 K, "

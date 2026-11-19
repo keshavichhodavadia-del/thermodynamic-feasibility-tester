@@ -32,12 +32,7 @@ FIELD = {
     "collection_area_m2": ("effective collection area", "area"),
     "reaction_direction": ("reaction direction or equation", "text"),
     "delta_G_kj_per_mol_rxn": ("signed Gibbs energy per mole of reaction", "molar_energy"),
-    "delta_H_kj_per_mol_rxn": ("signed reaction enthalpy per mole of reaction", "molar_energy"),
     "reaction_rate_mol_rxn_s": ("forward rate in moles of reaction per unit time", "molar_rate"),
-    "reaction_temperature_K": ("reaction operating temperature", "temperature"),
-    "heat_into_reactor_kw": ("heat-transfer rate into the reactor; negative means heat rejected", "power"),
-    "heat_rejection_temperature_K": ("temperature at which converter heat is rejected", "temperature"),
-    "heat_boundary_temperature_K": ("temperature at which reaction heat crosses the boundary", "temperature"),
     "T1_K": ("initial temperature", "temperature"),
     "T2_K": ("final temperature", "temperature"),
     "cp_kj_kg_k": ("constant specific heat", "cp"),
@@ -49,12 +44,8 @@ FIELD = {
     "server_heat_kw": ("optional server heat budget for Modified", "power"),
     "delta_E_kj": ("total system energy change", "energy"),
     "delta_S_system_kj_K": ("total system entropy change", "entropy"),
-    "T0_K": ("environment or dead-state temperature", "temperature"),
-    "environment_pressure_kPa": ("environment reference pressure", "pressure"),
-    "delta_V_m3": ("system volume change", "volume"),
     "W_out_kj": ("net work out of the system", "energy"),
     "adiabatic": ("an explicit statement that the boundary has no heat transfer", "no_heat"),
-    "heat_rejected_kw": ("measured heat rejection rate", "power"),
     "heat.heat_into_cv_kw": ("heat-transfer rate into the control volume", "power"),
     "heat.heat_out_of_cv_kw": ("rejected heat-transfer rate as a positive magnitude", "power"),
     "heat.heat_into_system_kj": ("total heat into the system", "energy"),
@@ -75,8 +66,6 @@ MASS_PROPERTIES = {
     "mass_flow_kg_s": ("mass flow rate", "mass_flow"),
     "specific_enthalpy_kj_kg": ("specific enthalpy", "specific_energy"),
     "specific_entropy_kj_kg_k": ("specific entropy", "cp"),
-    "specific_enthalpy_dead_state_kj_kg": ("dead-state specific enthalpy", "specific_energy"),
-    "specific_entropy_dead_state_kj_kg_k": ("dead-state specific entropy", "cp"),
 }
 for collection, name in (("inlets", "inlet"), ("outlets", "outlet")):
     for field, (label, kind) in MASS_PROPERTIES.items():
@@ -88,22 +77,20 @@ BALANCE_HEAT_FIELDS = {
 }
 ROUTES = {
     "mechanical_power": ("W_out_kw", "recoverable_mechanical_power_kw",
-                         "recoverable_energy_per_event_j", "events_per_s", "heat_rejected_kw", "heat_rejection_temperature_K"),
+                         "recoverable_energy_per_event_j", "events_per_s"),
     "fixed_reservoir_engine": ("W_out_kw", "T_hot_K", "T_cold_K", "Q_hot_kw", "Q_cold_rejected_kw"),
     "finite_stream_engine": ("W_out_kw", *(name for name in FIELD if "_stream." in name)),
     "steady_control_volume": (
-        "W_out_kw", "T0_K", "adiabatic", "heat.boundary_temperature_K",
+        "W_out_kw", "adiabatic", "heat.boundary_temperature_K",
         *(f"heat.{field}" for field in BALANCE_HEAT_FIELDS["steady_control_volume"]),
         *(field for field in FIELD if field.startswith(("inlets.", "outlets."))),
     ),
     "closed_system": (
-        "delta_E_kj", "delta_S_system_kj_K", "W_out_kj", "T0_K", "environment_pressure_kPa", "delta_V_m3",
-        "adiabatic", "heat.boundary_temperature_K",
+        "delta_E_kj", "delta_S_system_kj_K", "W_out_kj", "adiabatic", "heat.boundary_temperature_K",
         *(f"heat.{field}" for field in BALANCE_HEAT_FIELDS["closed_system"]),
     ),
     "solar_blackbody": ("W_out_kw", "T_source_K", "T_ambient_K", "irradiance_W_m2", "collection_area_m2"),
-    "reaction_gibbs": ("W_out_kw", "reaction_direction", "delta_G_kj_per_mol_rxn", "delta_H_kj_per_mol_rxn",
-                       "reaction_rate_mol_rxn_s", "reaction_temperature_K", "heat_into_reactor_kw", "heat_boundary_temperature_K"),
+    "reaction_gibbs": ("W_out_kw", "reaction_direction", "delta_G_kj_per_mol_rxn", "reaction_rate_mol_rxn_s"),
     "property_change": ("T1_K", "T2_K", "cp_kj_kg_k", "a", "b", "phase_delta_h_kj_kg", "phase_delta_s_kj_kg_k"),
     "assignment_base": ("suffix",),
     "assignment_modified": ("suffix", "server_heat_kw"),
@@ -124,8 +111,6 @@ UNITS = {
     "specific_energy": {"kj/kg": 1, "j/kg": .001},
     "energy": {"kj": 1, "j": .001, "mj": 1000},
     "entropy": {"kj/k": 1, "j/k": .001},
-    "pressure": {"kpa": 1, "pa": .001, "bar": 100, "atm": 101.325},
-    "volume": {"m3": 1, "l": .001, "litre": .001, "liter": .001},
     "cp": {"kj/kg/k": 1, "j/kg/k": .001, "kj/kgk": 1, "j/kgk": .001},
     "cp_slope": {"kj/kg/k2": 1, "j/kg/k2": .001, "kj/kgk2": 1, "j/kgk2": .001},
 }
@@ -134,7 +119,7 @@ UNIT_HINT = {
     "temperature": "K or °C", "irradiance": "W/m²", "area": "m²", "molar_energy": "kJ/mol reaction",
     "molar_rate": "mol reaction/s", "mass_flow": "kg/s", "specific_energy": "kJ/kg",
     "cp": "kJ/(kg K)", "cp_slope": "kJ/(kg K²)",
-    "energy": "J or kJ", "entropy": "kJ/K", "pressure": "kPa, bar or atm", "volume": "m³ or L",
+    "energy": "J or kJ", "entropy": "kJ/K",
 }
 NUMBER = r"[+\-−]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+\-]?\d+)?"
 NO_HEAT = r"(?:adiabatic|(?:no|zero)\s+heat\s+(?:transfer|exchange)|thermally insulated)"
@@ -220,7 +205,7 @@ def required_fields(route, values):
     if route in BALANCE_HEAT_FIELDS:
         return balance_requirements(route, values)
     if route == "mechanical_power":
-        direct, energy, rate = ROUTES[route][1:4]
+        direct, energy, rate = ROUTES[route][1:]
         if direct in values and (energy in values or rate in values):
             return [], ["Supply one mechanical basis: input power, or energy per event and event rate."]
         if not any(field in values for field in (direct, energy, rate)):
@@ -238,7 +223,7 @@ def required_fields(route, values):
         needed, issues = cp_requirements(values, "")
         phase = ("phase_delta_h_kj_kg", "phase_delta_s_kj_kg_k")
         return ["T1_K", "T2_K", *needed, *(phase if any(k in values for k in phase) else ())], issues
-    optional = {"Q_cold_rejected_kw", "server_heat_kw", "heat_rejected_kw", "heat_rejection_temperature_K"}
+    optional = {"Q_cold_rejected_kw", "server_heat_kw"}
     return [field for field in ROUTES[route] if field not in optional], []
 
 
@@ -263,7 +248,6 @@ def balance_requirements(route, values):
     required = ["W_out_kw"] if route == "steady_control_volume" else ["delta_E_kj", "delta_S_system_kj_K", "W_out_kj"]
     issues = []
     if route == "steady_control_volume":
-        required.append("T0_K")
         for collection in ("inlets", "outlets"):
             indices = sorted({int(path.split(".")[1]) for path in values if path.startswith(collection + ".")})
             if not indices:
@@ -275,8 +259,6 @@ def balance_requirements(route, values):
         issues.append("State that the boundary is adiabatic or give each heat transfer and its boundary temperature.")
     if heat_indices and "adiabatic" in values:
         issues.append("Clarify whether heat crosses the boundary. Both heat transfer and adiabatic conditions were supplied.")
-    if route == "closed_system":
-        required.extend(["T0_K", "environment_pressure_kPa", "delta_V_m3"])
     heat_in, heat_out = BALANCE_HEAT_FIELDS[route]
     for index in heat_indices:
         inward, outward = f"heat.{index}.{heat_in}", f"heat.{index}.{heat_out}"
@@ -395,8 +377,6 @@ def offline_extract(turns):
             "events_per_s": rf"({NUMBER}\s*(?:steps?|events?)\s*(?:/|per\s+)\s*(?:s|min|seconds?|minutes?))\b",
             "recoverable_mechanical_power_kw": rf"\brecoverable(?:\s+mechanical)?(?:\s+power)?(?:\s+of|\s+is|\s*[:=])?\s*{power}",
             "W_out_kw": output,
-            "heat_rejected_kw": rf"\b(?:rejects?|dissipates?|heat loss(?:\s+is)?)\s+({power})(?:\s+of\s+heat)?\b",
-            "heat_rejection_temperature_K": rf"\b(?:heat.*?(?:rejected|lost)|rejects?.{{0,40}}heat)\s+(?:at|to)\s+({NUMBER}\s*(?:°\s*C|C|K|kelvins?|degrees?\s+Celsius))\b",
         }
     elif (re.search(r"\bhot\s+(?:water|stream)\b", scenario, re.IGNORECASE)
           and re.search(r"\bcold\s+(?:tap\s+)?(?:water|stream)\b", scenario, re.IGNORECASE)):
